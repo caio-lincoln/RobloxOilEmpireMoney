@@ -764,7 +764,7 @@ end)
 local reg3 = mkSectionHeader("ADMIN / TESTE", 20, false)
 local testCard = mkCard(50, 21)
 reg3(testCard)
-mkLabel(testCard,"Set Money (1M)",13,14,10,0.7,18,true)
+mkLabel(testCard,"Set Money (102B)",13,14,10,0.7,18,true)
 do local l=mkLabel(testCard,"Seta o dinheiro para teste",12,14,28,0,15,false,Color3.fromRGB(70,70,70)); l.Size=UDim2.new(0,152,0,15); l.TextTruncate=Enum.TextTruncate.AtEnd end
 
 local setBtnBg = Instance.new("Frame", testCard)
@@ -778,7 +778,7 @@ stroke(setBtnBg, Color3.fromRGB(30,30,30))
 local setBtnTxt = Instance.new("TextLabel", setBtnBg)
 setBtnTxt.Size = UDim2.new(1,0,1,0)
 setBtnTxt.BackgroundTransparency = 1
-setBtnTxt.Text = "SET 1M"
+setBtnTxt.Text = "SET 102B"
 setBtnTxt.TextColor3 = Color3.fromRGB(220, 220, 220)
 setBtnTxt.Font = Enum.Font.GothamBold
 setBtnTxt.TextSize = 11
@@ -795,16 +795,16 @@ setBtn.MouseButton1Click:Connect(function()
         if ls then
             local money = ls:FindFirstChild("Money") or ls:FindFirstChild("Cash") or ls:FindFirstChild("Gasoline") or ls:FindFirstChild("Coins")
             if money then
-                money.Value = 1000000
+                money.Value = 102000000000
             end
         end
         
         -- 2. Tenta disparar RemoteEvents genéricos que possam estar vulneráveis no jogo
         for _, v in ipairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
             if v:IsA("RemoteEvent") and (v.Name:lower():find("money") or v.Name:lower():find("cash") or v.Name:lower():find("give") or v.Name:lower():find("add")) then
-                pcall(function() v:FireServer(1000000) end)
-                pcall(function() v:FireServer("Money", 1000000) end)
-                pcall(function() v:FireServer("Cash", 1000000) end)
+                pcall(function() v:FireServer(102000000000) end)
+                pcall(function() v:FireServer("Money", 102000000000) end)
+                pcall(function() v:FireServer("Cash", 102000000000) end)
             end
         end
     end)
