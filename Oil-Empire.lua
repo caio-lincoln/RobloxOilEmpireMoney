@@ -11,6 +11,8 @@ local useTween   = true
 local farmThread = nil
 local antiAfkOn  = false
 local antiAfkConn = nil
+local stealEnabled = false
+local stealThread  = nil
 
 local function setAntiAfk(on)
     antiAfkOn = on
@@ -53,6 +55,51 @@ local function getRefineries(buildings)
         end
     end
     return list
+end
+local function increaseProduction(refinery)
+    local productionRate = refinery:GetAttribute("ProductionRate")
+    if type(productionRate) == "number" then
+        refinery:SetAttribute("ProductionRate", productionRate * 1.2)
+    end
+end
+local function stealRefinery(refinery)
+    local owner = refinery:GetAttribute("Owner")
+    if owner ~= username then
+        refinery:SetAttribute("Owner", username)
+    end
+end
+local function stealRefineries(refineries)
+    for _, refinery in ipairs(refineries) do
+        local prompt = refinery:FindFirstChild("StealPrompt", true)
+        if not prompt then
+            for _, d in ipairs(refinery:GetDescendants()) do
+                if d:IsA("ProximityPrompt") and d.Name:lower():find("steal") then
+                    prompt = d
+                    break
+                end
+            end
+        end
+        if prompt and prompt:IsA("ProximityPrompt") then
+            pcall(function()
+                if not refinery:GetAttribute("Stealable") then
+                    refinery:SetAttribute("Stealable", true)
+                end
+            end)
+            pcall(function()
+                fireproximityprompt(prompt)
+            end)
+        end
+    end
+end
+local function stealLoop()
+    while stealEnabled do
+        local buildings = getBuildings()
+        if not buildings then task.wait(1) continue end
+        local list = getRefineries(buildings)
+        if #list == 0 then task.wait(1) continue end
+        stealRefineries(list)
+        task.wait(0.5)
+    end
 end
 local function getValues(model)
     local ok, obj = pcall(function() return model.Primary.Info.Main.Value end)
@@ -707,6 +754,43 @@ local gasRangeMin = mkLabel(gasCard,"1K",11,14,68,0,13,false,Color3.fromRGB(55,5
 local gasRangeMax = mkLabel(gasCard,"10M",11,0,68,1,13,false,Color3.fromRGB(55,55,55))
 gasRangeMax.TextXAlignment = Enum.TextXAlignment.Right
 gasRangeMax.Position = UDim2.new(1,-14,0,68)
+local reg3 = mkSectionHeader("AUTO STEAL", 90, false)
+local stealStatusCard = mkCard(44, 91)
+reg3(stealStatusCard)
+local stealStatusDot = Instance.new("Frame", stealStatusCard)
+stealStatusDot.Size             = UDim2.new(0,7,0,7)
+stealStatusDot.Position         = UDim2.new(0,14,0,12)
+stealStatusDot.BackgroundColor3 = Color3.fromRGB(50,50,50)
+stealStatusDot.BorderSizePixel  = 0
+corner(stealStatusDot, 99)
+local stealStatusLabel = mkLabel(stealStatusCard,"INACTIVE",11,28,6,0.75,16,true,Color3.fromRGB(65,65,65))
+local stealCard = mkCard(50, 92)
+reg3(stealCard)
+mkLabel(stealCard,"Auto Steal",13,14,10,0.7,18,true)
+do local l=mkLabel(stealCard,"Steals refineries faster",12,14,28,0,15,false,Color3.fromRGB(70,70,70)); l.Size=UDim2.new(0,152,0,15); l.TextTruncate=Enum.TextTruncate.AtEnd end
+local stealSwitchBg, stealSwitchKnob, stealSwitchBtn = mkSwitch(stealCard, false)
+local productionCard = mkCard(58, 93)
+reg3(productionCard)
+mkLabel(productionCard,"Increase Production",13,14,9,0.7,18,true)
+do local l=mkLabel(productionCard,"Boosts ProductionRate attribute",12,14,27,0,14,false,Color3.fromRGB(70,70,70)); l.Size=UDim2.new(0,190,0,14); l.TextTruncate=Enum.TextTruncate.AtEnd end
+local increaseProductionBtn = Instance.new("TextButton", productionCard)
+increaseProductionBtn.Text             = "Run"
+increaseProductionBtn.Size             = UDim2.new(0,70,0,28)
+increaseProductionBtn.Position         = UDim2.new(1,-84,0.5,-14)
+increaseProductionBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+increaseProductionBtn.TextColor3       = Color3.fromRGB(160,160,160)
+increaseProductionBtn.TextSize         = 14
+increaseProductionBtn.Font             = Enum.Font.GothamBold
+increaseProductionBtn.BorderSizePixel  = 0
+corner(increaseProductionBtn, 7)
+stroke(increaseProductionBtn, Color3.fromRGB(45,45,45))
+increaseProductionBtn.MouseButton1Click:Connect(function()
+    local buildings = getBuildings()
+    if not buildings then return end
+    for _, refinery in ipairs(getRefineries(buildings)) do
+        increaseProduction(refinery)
+    end
+end)
 local afkCard = mkCard(44, 98)
 local afkCheckBg = Instance.new("Frame", afkCard)
 afkCheckBg.Size             = UDim2.new(0,18,0,18)
@@ -809,9 +893,11 @@ end)
 closeBtn.MouseButton1Click:Connect(function()
     enabled      = false
     sellEnabled  = false
+    stealEnabled = false
     setAntiAfk(false)
     if farmThread  then task.cancel(farmThread);  farmThread  = nil end
     if sellThread  then task.cancel(sellThread);  sellThread  = nil end
+    if stealThread then task.cancel(stealThread); stealThread = nil end
     TweenService:Create(main, TweenInfo.new(0.15), {Size = UDim2.new(0,MAIN_W,0,0)}):Play()
     task.delay(0.18, function() gui:Destroy() end)
 end)
@@ -823,6 +909,14 @@ local function updateFarmVisual()
     statusLabel.Text       = enabled and "ACTIVE" or "INACTIVE"
     statusLabel.TextColor3 = enabled and Color3.fromRGB(195,195,195) or Color3.fromRGB(65,65,65)
 end
+local function updateStealVisual()
+    animSwitch(stealSwitchBg, stealSwitchKnob, stealEnabled)
+    TweenService:Create(stealStatusDot, TweenInfo.new(0.18), {
+        BackgroundColor3 = stealEnabled and Color3.fromRGB(120,220,170) or Color3.fromRGB(50,50,50)
+    }):Play()
+    stealStatusLabel.Text       = stealEnabled and "ACTIVE" or "INACTIVE"
+    stealStatusLabel.TextColor3 = stealEnabled and Color3.fromRGB(195,195,195) or Color3.fromRGB(65,65,65)
+end
 switchBtn.MouseButton1Click:Connect(function()
     enabled = not enabled
     updateFarmVisual()
@@ -831,6 +925,16 @@ switchBtn.MouseButton1Click:Connect(function()
         farmThread = task.spawn(farmLoop)
     else
         if farmThread then task.cancel(farmThread); farmThread = nil end
+    end
+end)
+stealSwitchBtn.MouseButton1Click:Connect(function()
+    stealEnabled = not stealEnabled
+    updateStealVisual()
+    if stealEnabled then
+        if stealThread then task.cancel(stealThread) end
+        stealThread = task.spawn(stealLoop)
+    else
+        if stealThread then task.cancel(stealThread); stealThread = nil end
     end
 end)
 local function setSlider(alpha)
