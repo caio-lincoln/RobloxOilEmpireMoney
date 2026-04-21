@@ -1,10 +1,15 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
+local ContextActionService = game:GetService("ContextActionService")
+
+if not RunService:IsClient() then
+	return
+end
 
 local LOCAL_PLAYER = Players.LocalPlayer
-if not LOCAL_PLAYER then
-	return
+while not LOCAL_PLAYER do
+	task.wait()
+	LOCAL_PLAYER = Players.LocalPlayer
 end
 
 local DEV_USER_IDS = {}
@@ -22,21 +27,12 @@ local function isAuthorized()
 		return true
 	end
 
-	if game.PrivateServerId ~= "" and game.PrivateServerOwnerId == LOCAL_PLAYER.UserId then
+	if game.PrivateServerId ~= "" and (game.PrivateServerOwnerId == LOCAL_PLAYER.UserId or game.PrivateServerOwnerId == 0) then
 		return true
 	end
 
 	return false
 end
-
-if not isAuthorized() then
-	return
-end
-
-local TOGGLE_KEYCODES = {
-	[Enum.KeyCode.RightShift] = true,
-	[Enum.KeyCode.F4] = true,
-}
 
 local enabled = false
 local highlightsByPlayer = {}
@@ -59,7 +55,7 @@ local function cleanupHighlights()
 end
 
 local function ensureGui()
-	local pg = LOCAL_PLAYER:FindFirstChildOfClass("PlayerGui")
+	local pg = LOCAL_PLAYER:FindFirstChildOfClass("PlayerGui") or LOCAL_PLAYER:WaitForChild("PlayerGui", 10)
 	if not pg then
 		return nil
 	end
@@ -97,7 +93,7 @@ local function ensureGui()
 	return gui
 end
 
-local function setGuiEnabled(isOn)
+local function setGuiStatus(text, isOn)
 	local gui = ensureGui()
 	if not gui then
 		return
@@ -105,7 +101,7 @@ local function setGuiEnabled(isOn)
 
 	local label = gui:FindFirstChild("Status")
 	if label and label:IsA("TextLabel") then
-		label.Text = ("Dev ESP: %s  (RightShift/F4)"):format(isOn and "ON" or "OFF")
+		label.Text = text
 		label.BackgroundColor3 = isOn and Color3.fromRGB(10, 60, 20) or Color3.fromRGB(20, 20, 20)
 	end
 end
@@ -136,15 +132,48 @@ local function createOrUpdateHighlightForPlayer(player, characterOverride)
 
 	local h = Instance.new("Highlight")
 	h.Name = "DevESPHighlight"
-	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	h.DepthMode = Enum.HighlightDepthMode.Occluded
 	h.Adornee = character
 	h.FillTransparency = 0.65
 	h.OutlineTransparency = 0
 	h.FillColor = Color3.fromRGB(0, 170, 255)
 	h.OutlineColor = Color3.fromRGB(255, 255, 255)
-	h.Parent = root
+	h.Parent = workspace
 
 	highlightsByPlayer[player] = h
+end
+
+local function hasLineOfSight(targetRoot)
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return false
+	end
+
+	local origin = camera.CFrame.Position
+	local direction = targetRoot.Position - origin
+	if direction.Magnitude < 0.01 then
+		return true
+	end
+
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local ignore = {}
+	local localChar = LOCAL_PLAYER.Character
+	if localChar then
+		table.insert(ignore, localChar)
+	end
+	params.FilterDescendantsInstances = ignore
+
+	local result = workspace:Raycast(origin, direction, params)
+	if not result then
+		return true
+	end
+
+	if result.Instance and result.Instance:IsDescendantOf(targetRoot.Parent) then
+		return true
+	end
+
+	return false
 end
 
 local function hookPlayer(player)
@@ -182,7 +211,7 @@ local function enable()
 		return
 	end
 	enabled = true
-	setGuiEnabled(true)
+	setGuiStatus("Dev Overlay: ON  (RightShift/F4)", true)
 
 	for _, p in ipairs(Players:GetPlayers()) do
 		hookPlayer(p)
@@ -206,6 +235,25 @@ local function enable()
 		highlightsByPlayer[p] = nil
 	end))
 
+	table.insert(connections, RunService.RenderStepped:Connect(function()
+		if not enabled then
+			return
+		end
+
+		for player, highlight in pairs(highlightsByPlayer) do
+			if not highlight or not highlight.Parent then
+				highlightsByPlayer[player] = nil
+			else
+				local character = player.Character
+				local root = getCharacterRoot(character)
+				if character and root and highlight.Adornee == character then
+					highlight.Enabled = hasLineOfSight(root)
+				else
+					highlight.Enabled = false
+				end
+			end
+		end
+	end))
 end
 
 local function disable()
@@ -213,23 +261,31 @@ local function disable()
 		return
 	end
 	enabled = false
-	setGuiEnabled(false)
+	setGuiStatus("Dev Overlay: OFF  (RightShift/F4)", false)
 	disconnectAll()
 	cleanupHighlights()
 end
 
-setGuiEnabled(false)
+if isAuthorized() then
+	setGuiStatus("Dev Overlay: OFF  (RightShift/F4)", false)
+else
+	setGuiStatus("Dev Overlay: BLOQUEADO (sem autorização)", false)
+end
 
-table.insert(connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then
-		return
+ContextActionService:BindAction("DevOverlayToggle", function(_, state)
+	if state ~= Enum.UserInputState.Begin then
+		return Enum.ContextActionResult.Pass
 	end
 
-	if input.UserInputType == Enum.UserInputType.Keyboard and TOGGLE_KEYCODES[input.KeyCode] then
-		if enabled then
-			disable()
-		else
-			enable()
-		end
+	if not isAuthorized() then
+		return Enum.ContextActionResult.Pass
 	end
-end))
+
+	if enabled then
+		disable()
+	else
+		enable()
+	end
+
+	return Enum.ContextActionResult.Sink
+end, false, Enum.KeyCode.RightShift, Enum.KeyCode.F4)
