@@ -754,8 +754,8 @@ local gasRangeMin = mkLabel(gasCard,"1K",11,14,68,0,13,false,Color3.fromRGB(55,5
 local gasRangeMax = mkLabel(gasCard,"10M",11,0,68,1,13,false,Color3.fromRGB(55,55,55))
 gasRangeMax.TextXAlignment = Enum.TextXAlignment.Right
 gasRangeMax.Position = UDim2.new(1,-14,0,68)
-local reg3 = mkSectionHeader("AUTO STEAL", 90, false)
-local stealStatusCard = mkCard(44, 91)
+local reg3 = mkSectionHeader("AUTO STEAL", 6, false)
+local stealStatusCard = mkCard(44, 7)
 reg3(stealStatusCard)
 local stealStatusDot = Instance.new("Frame", stealStatusCard)
 stealStatusDot.Size             = UDim2.new(0,7,0,7)
@@ -764,12 +764,12 @@ stealStatusDot.BackgroundColor3 = Color3.fromRGB(50,50,50)
 stealStatusDot.BorderSizePixel  = 0
 corner(stealStatusDot, 99)
 local stealStatusLabel = mkLabel(stealStatusCard,"INACTIVE",11,28,6,0.75,16,true,Color3.fromRGB(65,65,65))
-local stealCard = mkCard(50, 92)
+local stealCard = mkCard(50, 8)
 reg3(stealCard)
 mkLabel(stealCard,"Auto Steal",13,14,10,0.7,18,true)
 do local l=mkLabel(stealCard,"Steals refineries faster",12,14,28,0,15,false,Color3.fromRGB(70,70,70)); l.Size=UDim2.new(0,152,0,15); l.TextTruncate=Enum.TextTruncate.AtEnd end
 local stealSwitchBg, stealSwitchKnob, stealSwitchBtn = mkSwitch(stealCard, false)
-local productionCard = mkCard(58, 93)
+local productionCard = mkCard(58, 9)
 reg3(productionCard)
 mkLabel(productionCard,"Increase Production",13,14,9,0.7,18,true)
 do local l=mkLabel(productionCard,"Boosts ProductionRate attribute",12,14,27,0,14,false,Color3.fromRGB(70,70,70)); l.Size=UDim2.new(0,190,0,14); l.TextTruncate=Enum.TextTruncate.AtEnd end
